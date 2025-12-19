@@ -1,0 +1,43 @@
+#!/usr/bin/env groovy
+
+def call(String xmlFile) {
+    def testResults = [
+        total: 0,
+        passed: 0,
+        failed: 0,
+        duration: 0,
+        failedTests: ''
+    ]
+    
+    try {
+        def xmlContent = readFile(file: xmlFile)
+        def testsuites = new XmlSlurper().parseText(xmlContent)
+        
+        testsuites.testsuite.each { testsuite ->
+            testResults.total += testsuite.@tests.toInteger()
+            testResults.failed += testsuite.@failures.toInteger()
+            testResults.duration += testsuite.@time.toDouble()
+            
+            testsuite.testcase.each { testcase ->
+                if (testcase.failure.size() > 0) {
+                    def testName = testcase.@name.toString()
+                    def failureMessage = testcase.failure.text().toString()
+                    testResults.failedTests += "${testName}: ${failureMessage}\n"
+                }
+            }
+        }
+        
+        testResults.passed = testResults.total - testResults.failed
+        testResults.duration = String.format("%.1f", testResults.duration)
+        
+        if (testResults.failedTests) {
+            testResults.failedTests = testResults.failedTests.trim()
+        }
+        
+    } catch (Exception e) {
+        echo "Error parsing JUnit XML: ${e.message}"
+        testResults.failedTests = "Error parsing test results: ${e.message}"
+    }
+    
+    return testResults
+}
