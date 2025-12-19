@@ -18,24 +18,22 @@ def call(String xmlFile) {
         def totalDuration = 0.0
         def failedTestsList = []
         
-        // Handle both <testsuites> wrapper and direct <testsuite>
-        def suites = testsuites.name() == 'testsuites' ? testsuites.testsuite : [testsuites]
-        
-        suites.each { testsuite ->
-            // Access attributes as properties
-            def tests = testsuite.@tests.toString()
-            def failures = testsuite.@failures.toString()
-            def time = testsuite.@time.toString()
+        // Access testsuite elements
+        testsuites.testsuite.each { testsuite ->
+            // Use attribute() method to access attributes safely
+            def tests = testsuite.attribute('tests')
+            def failures = testsuite.attribute('failures')
+            def time = testsuite.attribute('time')
             
-            totalTests += tests ? tests.toInteger() : 0
-            totalFailures += failures ? failures.toInteger() : 0
-            totalDuration += time ? time.toDouble() : 0.0
+            totalTests += tests ? Integer.parseInt(tests) : 0
+            totalFailures += failures ? Integer.parseInt(failures) : 0
+            totalDuration += time ? Double.parseDouble(time) : 0.0
             
             // Collect failed test details
             testsuite.testcase.each { testcase ->
                 if (testcase.failure.size() > 0) {
-                    def testName = testcase.@name.toString()
-                    def failureMessage = testcase.failure.text().toString()
+                    def testName = testcase.attribute('name')
+                    def failureMessage = testcase.failure.text()
                     failedTestsList.add("${testName}: ${failureMessage}")
                 }
             }
@@ -49,7 +47,7 @@ def call(String xmlFile) {
         
     } catch (Exception e) {
         echo "Error parsing JUnit XML: ${e.message}"
-        echo "Stack trace: ${e.getStackTrace()}"
+        echo "Exception class: ${e.class.name}"
         testResults.failedTests = "Error parsing test results: ${e.message}"
     }
     
