@@ -1,6 +1,6 @@
 #!/usr/bin/env groovy
 
-def call(String xmlFile) {
+def parseJUnitXML(xmlFile) {
     def testResults = [
         total: 0,
         passed: 0,
@@ -14,14 +14,16 @@ def call(String xmlFile) {
         def testsuites = new XmlSlurper().parseText(xmlContent)
         
         testsuites.testsuite.each { testsuite ->
-            testResults.total += testsuite.@tests.toInteger()
-            testResults.failed += testsuite.@failures.toInteger()
-            testResults.duration += testsuite.@time.toDouble()
+            // Use .text() to get attribute values as strings
+            testResults.total += testsuite.'@tests'.text() as Integer
+            testResults.failed += testsuite.'@failures'.text() as Integer
+            testResults.duration += testsuite.'@time'.text() as Double
             
+            // Collect failed test details
             testsuite.testcase.each { testcase ->
                 if (testcase.failure.size() > 0) {
-                    def testName = testcase.@name.toString()
-                    def failureMessage = testcase.failure.text().toString()
+                    def testName = testcase.'@name'.text()
+                    def failureMessage = testcase.failure.text()
                     testResults.failedTests += "${testName}: ${failureMessage}\n"
                 }
             }
@@ -30,6 +32,7 @@ def call(String xmlFile) {
         testResults.passed = testResults.total - testResults.failed
         testResults.duration = String.format("%.1f", testResults.duration)
         
+        // Trim trailing newline from failedTests
         if (testResults.failedTests) {
             testResults.failedTests = testResults.failedTests.trim()
         }
