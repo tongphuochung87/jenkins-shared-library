@@ -11,29 +11,29 @@ def call(String xmlFile) {
     
     try {
         def xmlContent = readFile(file: xmlFile)
-        def testsuites = new XmlSlurper().parseText(xmlContent)
+        def parser = new XmlParser()
+        def testsuites = parser.parseText(xmlContent)
         
         def totalTests = 0
         def totalFailures = 0
         def totalDuration = 0.0
         def failedTestsList = []
         
-        // Access testsuite elements
-        testsuites.testsuite.each { testsuite ->
-            // Use attribute() method to access attributes safely
-            def tests = testsuite.attribute('tests')
-            def failures = testsuite.attribute('failures')
-            def time = testsuite.attribute('time')
-            
-            totalTests += tests ? Integer.parseInt(tests) : 0
-            totalFailures += failures ? Integer.parseInt(failures) : 0
-            totalDuration += time ? Double.parseDouble(time) : 0.0
+        // Handle both <testsuites> wrapper and direct <testsuite>
+        def suites = testsuites.name() == 'testsuites' ? testsuites.testsuite : [testsuites]
+        
+        suites.each { testsuite ->
+            // XmlParser uses @attribute syntax directly
+            totalTests += (testsuite.@tests ?: '0') as Integer
+            totalFailures += (testsuite.@failures ?: '0') as Integer
+            totalDuration += (testsuite.@time ?: '0') as Double
             
             // Collect failed test details
             testsuite.testcase.each { testcase ->
-                if (testcase.failure.size() > 0) {
-                    def testName = testcase.attribute('name')
-                    def failureMessage = testcase.failure.text()
+                def failures = testcase.failure
+                if (failures && !failures.isEmpty()) {
+                    def testName = testcase.@name
+                    def failureMessage = failures[0].text()
                     failedTestsList.add("${testName}: ${failureMessage}")
                 }
             }
@@ -48,6 +48,7 @@ def call(String xmlFile) {
     } catch (Exception e) {
         echo "Error parsing JUnit XML: ${e.message}"
         echo "Exception class: ${e.class.name}"
+        e.printStackTrace()
         testResults.failedTests = "Error parsing test results: ${e.message}"
     }
     
