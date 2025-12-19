@@ -1,11 +1,11 @@
 #!/usr/bin/env groovy
 
-def parseJUnitXML(xmlFile) {
+def call(String xmlFile) {
     def testResults = [
-        total: 0,
-        passed: 0,
-        failed: 0,
-        duration: 0,
+        total: '0',
+        passed: '0',
+        failed: '0',
+        duration: '0.0',
         failedTests: ''
     ]
     
@@ -13,32 +13,43 @@ def parseJUnitXML(xmlFile) {
         def xmlContent = readFile(file: xmlFile)
         def testsuites = new XmlSlurper().parseText(xmlContent)
         
-        testsuites.testsuite.each { testsuite ->
-            // Use .text() to get attribute values as strings
-            testResults.total += testsuite.'@tests'.text() as Integer
-            testResults.failed += testsuite.'@failures'.text() as Integer
-            testResults.duration += testsuite.'@time'.text() as Double
+        def totalTests = 0
+        def totalFailures = 0
+        def totalDuration = 0.0
+        def failedTestsList = []
+        
+        // Handle both <testsuites> wrapper and direct <testsuite>
+        def suites = testsuites.name() == 'testsuites' ? testsuites.testsuite : [testsuites]
+        
+        suites.each { testsuite ->
+            // Access attributes as properties
+            def tests = testsuite.@tests.toString()
+            def failures = testsuite.@failures.toString()
+            def time = testsuite.@time.toString()
+            
+            totalTests += tests ? tests.toInteger() : 0
+            totalFailures += failures ? failures.toInteger() : 0
+            totalDuration += time ? time.toDouble() : 0.0
             
             // Collect failed test details
             testsuite.testcase.each { testcase ->
                 if (testcase.failure.size() > 0) {
-                    def testName = testcase.'@name'.text()
-                    def failureMessage = testcase.failure.text()
-                    testResults.failedTests += "${testName}: ${failureMessage}\n"
+                    def testName = testcase.@name.toString()
+                    def failureMessage = testcase.failure.text().toString()
+                    failedTestsList.add("${testName}: ${failureMessage}")
                 }
             }
         }
         
-        testResults.passed = testResults.total - testResults.failed
-        testResults.duration = String.format("%.1f", testResults.duration)
-        
-        // Trim trailing newline from failedTests
-        if (testResults.failedTests) {
-            testResults.failedTests = testResults.failedTests.trim()
-        }
+        testResults.total = totalTests.toString()
+        testResults.failed = totalFailures.toString()
+        testResults.passed = (totalTests - totalFailures).toString()
+        testResults.duration = String.format("%.1f", totalDuration)
+        testResults.failedTests = failedTestsList.join('\n')
         
     } catch (Exception e) {
         echo "Error parsing JUnit XML: ${e.message}"
+        echo "Stack trace: ${e.getStackTrace()}"
         testResults.failedTests = "Error parsing test results: ${e.message}"
     }
     
